@@ -8,6 +8,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Label } from '@/components/ui/label'
 import { useAuth } from '@clerk/nextjs'
 
+// Define a type for payment methods
+type PaymentMethod = 'venmo' | 'zelle' | 'cashapp';
+
+// Define a type for account keys
+type AccountKey = 'uber' | 'lyft';
+
 export default function Home() {
   const router = useRouter()
   const { signOut } = useAuth();
@@ -48,7 +54,7 @@ export default function Home() {
     }));
   };
 
-  const handlePaymentMethodChange = (method: string) => {
+  const handlePaymentMethodChange = (method: PaymentMethod) => {
     setFormData((prev) => ({
       ...prev,
       paymentMethods: {
@@ -58,7 +64,7 @@ export default function Home() {
     }));
   };
 
-  const handleAccountChange = (account: string) => {
+  const handleAccountChange = (account: AccountKey) => {
     setFormData((prev) => ({
       ...prev,
       accounts: {

@@ -4,9 +4,20 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 
+// Define the type for form data
+interface FormData {
+  name: string;
+  phone: string;
+  travelType: string;
+  travelNumber: string;
+  destination: string;
+  arrivalTime: string;
+  paymentMethod: string;
+}
+
 export default function SuccessPage() {
   const router = useRouter()
-  const [formData, setFormData] = useState(null)
+  const [formData, setFormData] = useState<FormData | null>(null); // Initialize as null
 
   useEffect(() => {
     // In a real application, you would fetch the user's form data from your backend here
@@ -19,8 +30,8 @@ export default function SuccessPage() {
       destination: 'Brown University Campus',
       arrivalTime: '2023-09-01T14:00',
       paymentMethod: 'venmo',
-    })
-  }, [])
+    });
+  }, []);
 
   const handleEdit = () => {
     router.push('/form')

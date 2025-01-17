@@ -9,10 +9,11 @@ export default function SignInPage() {
   const router = useRouter();
 
   useEffect(() => {
-    if (signIn.isSignedIn) {
+    // Check if signIn is loaded and the user is signed in
+    if (signIn.isLoaded && signIn.signIn) {
       router.push("/form"); // Redirect to the form page after sign-in
     }
-  }, [signIn.isSignedIn, router]);
+  }, [signIn.isLoaded, signIn.signIn, router]);
 
   return (
     <div className="flex items-center justify-center min-h-screen bg-gray-100">
@@ -27,8 +28,6 @@ export default function SignInPage() {
         signUpUrl="/sign-up"
         routing="path"
         path="/sign-in"
-        socialButtonsPlacement="bottom"
-        socialButtons={["oauth_google"]}
       />
     </div>
   );
