@@ -1,57 +1,140 @@
 'use client'
 
-import { useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useEffect, useState, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Label } from '@/components/ui/label'
-import { useAuth } from '@clerk/nextjs'
+import { useAuth, useUser } from '@clerk/nextjs'
 
-// Define a type for payment methods
 type PaymentMethod = 'venmo' | 'zelle' | 'cashapp';
-
-// Define a type for account keys
 type AccountKey = 'uber' | 'lyft';
 
-export default function Home() {
-  const router = useRouter()
-  const { signOut } = useAuth();
-  const [formData, setFormData] = useState({
-    name: '',
-    phone: '',
-    travelType: '',
-    travelNumber: '',
-    destination: '',
-    arrivalDate: '',
-    arrivalTime: '',
-    paymentMethods: {
-      venmo: false,
-      zelle: false,
-      cashapp: false,
-    },
-    accounts: {
-      uber: false,
-      lyft: false,
-    },
-  })
+const initialFormState = {
+  name: '',
+  phone: '',
+  flightNumber: '',
+  destination: '',
+  arrivalDate: '',
+  arrivalTime: '',
+  paymentMethods: {
+    venmo: false,
+    zelle: false,
+    cashapp: false,
+  },
+  accounts: {
+    uber: false,
+    lyft: false,
+  },
+};
+
+const Home = () => {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const {isLoaded, isSignedIn, signOut, userId} = useAuth();
+  const { user } = useUser();
+  const [formData, setFormData] = useState(initialFormState);
+  const isBrownEmail = user?.primaryEmailAddress?.emailAddress?.endsWith('@brown.edu');
+
+  const handleSignOut = async () => {
+    console.log("Attempting to sign out...");
+    try {
+      await signOut(); // Sign out the user
+      console.log("Sign out successful, redirecting to sign-in...");
+      router.push('/sign-in'); // Redirect to the sign-in page
+    } catch (error) {
+      console.error("Error signing out:", error); // Log any errors
+    }
+  };
+
+  useEffect(() => {
+    // Logic to restore form data if needed
+    if (searchParams) {
+      try {
+        const savedName = searchParams.get('name');
+        if (savedName) {
+          setFormData((prev) => ({
+            ...prev,
+            name: savedName,
+            phone: searchParams.get('phone') || '',
+            flightNumber: searchParams.get('flightNumber') || '',
+            destination: searchParams.get('destination') || '',
+            arrivalDate: searchParams.get('arrivalDate') || '',
+            arrivalTime: searchParams.get('arrivalTime') || '',
+            paymentMethods: JSON.parse(searchParams.get('paymentMethods') || '{}') || initialFormState.paymentMethods,
+            accounts: JSON.parse(searchParams.get('accounts') || '{}') || initialFormState.accounts,
+          }));
+        }
+      } catch (error) {
+        console.error('Error restoring form data:', error);
+        setFormData(initialFormState);
+      }
+    }
+  }, [searchParams]);
+
+  // Render logic based on authentication state
+  if (isLoaded && (!isSignedIn || !isBrownEmail)) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100">
+        <div className="absolute top-4 right-4">
+          <Button onClick={handleSignOut}>Sign Out</Button>
+        </div>
+        <div className="bg-white shadow-lg rounded-lg p-8 max-w-md text-center">
+          <h1 className="text-2xl font-bold mb-4">Access Restricted</h1>
+          <p className="text-gray-600 mb-6">
+            Please sign in with your Brown University email address to access this form.
+          </p>
+          {isSignedIn && !isBrownEmail && (
+            <p className="text-red-600 mb-4">
+              You are currently signed in with a non-Brown email address.
+            </p>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // Show loading state while auth is being checked
+  if (!isLoaded) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-100">
+        <div className="text-xl">Loading...</div>
+      </div>
+    );
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-    console.log(formData)
-    router.push('/success')
-  }
+    e.preventDefault();
+    
+    const queryParams = new URLSearchParams();
+    
+    // Add all form data to query parameters
+    queryParams.append('name', formData.name);
+    queryParams.append('phone', formData.phone);
+    queryParams.append('flightNumber', formData.flightNumber);
+    queryParams.append('destination', formData.destination);
+    queryParams.append('arrivalDate', formData.arrivalDate);
+    queryParams.append('arrivalTime', formData.arrivalTime); // Ensure this is in HH:mm format
+    queryParams.append('paymentMethods', JSON.stringify(formData.paymentMethods));
+    queryParams.append('accounts', JSON.stringify(formData.accounts));
+
+    router.push(`/success?${queryParams.toString()}`);
+  };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement> | { target: { name: string; value: string } }) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value })
-  }
+    setFormData({ ...formData, [e.target.name]: e.target.value });
+  };
 
-  const handleTravelTypeChange = (value: string) => {
-    setFormData((prev) => ({
-      ...prev,
-      travelType: value,
-      destination: '',
-    }));
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value.replace(/\D/g, ''); // Remove non-numeric characters
+    const formattedValue = value.length > 6
+      ? `(${value.slice(0, 3)}) ${value.slice(3, 6)}-${value.slice(6, 10)}`
+      : value.length > 3
+      ? `(${value.slice(0, 3)}) ${value.slice(3)}`
+      : value;
+
+    setFormData({ ...formData, phone: formattedValue });
   };
 
   const handlePaymentMethodChange = (method: PaymentMethod) => {
@@ -59,7 +142,7 @@ export default function Home() {
       ...prev,
       paymentMethods: {
         ...prev.paymentMethods,
-        [method]: !prev.paymentMethods[method], // Toggle the checkbox
+        [method]: !prev.paymentMethods[method],
       },
     }));
   };
@@ -69,15 +152,10 @@ export default function Home() {
       ...prev,
       accounts: {
         ...prev.accounts,
-        [account]: !prev.accounts[account], // Toggle the checkbox
+        [account]: !prev.accounts[account],
       },
     }));
   };
-
-  const handleSignOut = async () => {
-    await signOut();
-    router.push('/sign-in');
-  }
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100">
@@ -92,50 +170,54 @@ export default function Home() {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <Label htmlFor="name" className="text-base">Name</Label>
-            <Input id="name" name="name" value={formData.name} onChange={handleChange} required className="text-base" />
+            <Input
+              id="name"
+              name="name"
+              value={formData.name}
+              onChange={handleChange}
+              placeholder="Christina Paxson"
+              required
+              className="text-base placeholder-gray-400"
+            />
           </div>
           <div>
             <Label htmlFor="phone" className="text-base">Phone Number</Label>
-            <Input id="phone" name="phone" type="tel" value={formData.phone} onChange={handleChange} required className="text-base" />
-          </div>
-          <div>
-            <Label htmlFor="travelType" className="text-base">Travel Type</Label>
-            <Select name="travelType" onValueChange={handleTravelTypeChange}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select travel type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="flight">Flight</SelectItem>
-                <SelectItem value="train">Train</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          <div>
-            <Label htmlFor="travelNumber" className="text-base">Flight/Train Number</Label>
             <Input
-              id="travelNumber"
-              name="travelNumber"
-              value={formData.travelNumber}
+              id="phone"
+              name="phone"
+              type="tel"
+              value={formData.phone}
+              onChange={handlePhoneChange}
+              placeholder="(123) 456-7890"
+              required
+              className="text-base placeholder-gray-400"
+            />
+          </div>
+          <div>
+            <Label htmlFor="flightNumber" className="text-base">Flight Number</Label>
+            <Input
+              id="flightNumber"
+              name="flightNumber"
+              value={formData.flightNumber}
               onChange={handleChange}
-              required className="text-base"
+              placeholder="AA123"
+              required
+              className="text-base placeholder-gray-400"
             />
           </div>
           <div>
             <Label htmlFor="destination" className="text-base">Destination</Label>
-            <Select name="destination" onValueChange={(value) => handleChange({ target: { name: 'destination', value } })}>
+            <Select 
+              name="destination" 
+              value={formData.destination}
+              onValueChange={(value) => handleChange({ target: { name: 'destination', value } })}
+            >
               <SelectTrigger>
                 <SelectValue placeholder="Select destination" />
               </SelectTrigger>
               <SelectContent>
-                {formData.travelType === 'flight' && (
-                  <>
-                    <SelectItem value="tf_green">T.F. Green</SelectItem>
-                    <SelectItem value="boston_logan">Boston Logan</SelectItem>
-                  </>
-                )}
-                {formData.travelType === 'train' && (
-                  <SelectItem value="providence_station">Providence Station</SelectItem>
-                )}
+                <SelectItem value="tf_green">T.F. Green</SelectItem>
+                <SelectItem value="boston_logan">Boston Logan</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -147,7 +229,10 @@ export default function Home() {
               type="date"
               value={formData.arrivalDate}
               onChange={handleChange}
-              required className="text-base"
+              min="2025-01-01"  // Optional: limit earliest date
+              max="2025-12-31"  // Optional: limit latest date
+              required
+              className="text-base"
             />
           </div>
           <div>
@@ -158,7 +243,8 @@ export default function Home() {
               type="time"
               value={formData.arrivalTime}
               onChange={handleChange}
-              required className="text-base"
+              required
+              className="text-base"
             />
           </div>
           <div>
@@ -220,5 +306,14 @@ export default function Home() {
         </form>
       </div>
     </div>
-  )
-}
+  );
+};
+
+// Wrap the Home component in a Suspense boundary
+const App = () => (
+  <Suspense fallback={<div>Loading...</div>}>
+    <Home />
+  </Suspense>
+);
+
+export default App;
